@@ -310,17 +310,19 @@ bin/ninja -C out/$release_name;
 
 cd $script_dir;
 
-# Copy the build to a generic output location
-if [ -d "src/skia/out/release-linux" ]; then
-    rm -rf src/skia/out/release-linux;
+# Keep the arch-specific output and create a symlink for backwards compatibility
+cd src/skia/out
+
+# Remove old symlink if exists
+if [ -L "release-linux" ]; then
+    rm release-linux
 fi
-mkdir -p src/skia/out/release-linux;
 
-# Copy all files from architecture-specific build
-cp -r src/skia/out/$release_name/* src/skia/out/release-linux/;
+# Create symlink pointing to the arch-specific build
+ln -sf $release_name release-linux
 
-# Clean up architecture-specific output
-rm -rf src/skia/out/$release_name;
+cd $script_dir
 
 echo "Build complete for Linux ($target_cpu architecture)"
-echo "Output: src/skia/out/release-linux/"
+echo "Output: src/skia/out/$release_name/"
+echo "Symlink: src/skia/out/release-linux -> $release_name"
