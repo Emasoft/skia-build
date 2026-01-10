@@ -189,6 +189,9 @@ echo skia_use_gl = true >> "%ARGS_FILE%"
 echo skia_use_vulkan = false >> "%ARGS_FILE%"
 echo skia_use_direct3d = false >> "%ARGS_FILE%"
 echo skia_use_dawn = false >> "%ARGS_FILE%"
+echo skia_use_harfbuzz = true >> "%ARGS_FILE%"
+echo skia_use_icu = true >> "%ARGS_FILE%"
+echo skia_enable_skshaper = true >> "%ARGS_FILE%"
 echo extra_cflags_cc = ["/EHsc", "/GR"] >> "%ARGS_FILE%"
 
 echo [INFO] Build configuration:
@@ -207,7 +210,7 @@ if errorlevel 1 (
 rem Build with ninja
 echo.
 echo [STEP 7] Building Skia (this may take 15-30 minutes)...
-bin\ninja -C %OUT_DIR% skia svg
+bin\ninja -C %OUT_DIR% skia svg skshaper skresources
 if errorlevel 1 (
     echo [ERROR] Build failed
     cd ..\..
