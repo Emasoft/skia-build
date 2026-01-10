@@ -210,7 +210,7 @@ if errorlevel 1 (
 rem Build with ninja
 echo.
 echo [STEP 7] Building Skia (this may take 15-30 minutes)...
-bin\ninja -C %OUT_DIR% skia svg skshaper skresources
+bin\ninja -C %OUT_DIR% skia svg skshaper skresources skunicode
 if errorlevel 1 (
     echo [ERROR] Build failed
     cd ..\..
