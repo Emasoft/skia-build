@@ -1,20 +1,27 @@
 #!/bin/bash
 
 # build-ios-arch.sh - Shared iOS Skia build script for specific architecture
-# Usage: ./build-ios-arch.sh <target> <arch>
+# Usage: ./build-ios-arch.sh <target> <arch> [--clean]
 # Where <target> is "device" or "simulator"
 # Where <arch> is "arm64" or "x64"
 
 if [ $# -lt 2 ]; then
     echo "Error: Target and architecture required"
-    echo "Usage: $0 <target> <arch>"
+    echo "Usage: $0 <target> <arch> [--clean]"
     echo "  <target>  Build target (device or simulator)"
     echo "  <arch>    Target architecture (arm64 or x64)"
+    echo "  --clean   Clean build output before building (optional)"
     exit 1
 fi
 
 target=$1
 arch=$2
+clean_build=false
+
+# Check for --clean flag
+if [ "$3" = "--clean" ]; then
+    clean_build=true
+fi
 
 # Validate target
 if [ "$target" != "device" ] && [ "$target" != "simulator" ]; then
@@ -57,13 +64,18 @@ else
     target_os="ios"
 fi
 
-rm -rf out/$release_name;
+# Clean build output if --clean flag is set (enables incremental builds by default)
+if [ "$clean_build" = true ]; then
+    echo "Performing clean build (removing out/$release_name)..."
+    rm -rf out/$release_name;
+fi
 mkdir -p out/$release_name;
 
 args_file=out/$release_name/args.gn;
 
 # Common iOS build settings
-echo 'is_official_build = true' >> $args_file;
+# Create fresh args.gn (use > not >> for first line to avoid stale config)
+echo 'is_official_build = true' > $args_file;
 echo "target_os = \"$target_os\"" >> $args_file;
 echo "target_cpu = \"$arch\"" >> $args_file;
 
@@ -96,6 +108,9 @@ echo 'skia_use_icu = true' >> $args_file;
 # Enable Metal for iOS
 echo 'skia_use_metal = true' >> $args_file;
 
+# Enable Graphite (next-gen GPU backend)
+echo 'skia_enable_graphite = true' >> $args_file;
+
 # Enable C++ features
 echo 'extra_cflags_cc=["-fexceptions", "-frtti"]' >> $args_file;
 
@@ -110,6 +125,14 @@ echo 'skia_use_freetype = true' >> $args_file;
 echo 'skia_enable_skottie = true' >> $args_file;
 echo 'skia_enable_pdf = true' >> $args_file;
 echo 'skia_enable_skshaper = true' >> $args_file;
+
+# Detect ccache for faster incremental builds
+if command -v ccache >/dev/null 2>&1; then
+    echo "✓ Found ccache - enabling for faster incremental builds"
+    echo 'cc_wrapper = "ccache"' >> $args_file;
+else
+    echo "ℹ ccache not found - install with 'brew install ccache' for faster rebuilds"
+fi
 
 # Generate build files
 bin/gn gen out/$release_name

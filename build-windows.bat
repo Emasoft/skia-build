@@ -5,10 +5,15 @@ rem build-windows.bat - Build Skia for Windows
 rem Usage: build-windows.bat [options]
 rem Options:
 rem   /y               Skip confirmation prompts (useful for CI/automation)
+rem   /clean           Clean build (remove previous output directory)
 rem   /help            Show this help message
+
+rem Track build time
+set "BUILD_START=%time%"
 
 rem Parse arguments
 set "NON_INTERACTIVE=false"
+set "CLEAN_BUILD=false"
 :parse_args
 if "%~1"=="" goto :done_args
 if /i "%~1"=="/y" (
@@ -16,10 +21,16 @@ if /i "%~1"=="/y" (
     shift
     goto :parse_args
 )
+if /i "%~1"=="/clean" (
+    set "CLEAN_BUILD=true"
+    shift
+    goto :parse_args
+)
 if /i "%~1"=="/help" (
     echo Usage: %~nx0 [options]
     echo Options:
     echo   /y               Skip confirmation prompts
+    echo   /clean           Clean build (remove previous output directory)
     echo   /help            Show this help message
     exit /b 0
 )
@@ -160,12 +171,14 @@ rem Set output directory
 set "RELEASE_NAME=release-windows"
 set "OUT_DIR=out\%RELEASE_NAME%"
 
-rem Clean previous build
-if exist "%OUT_DIR%" (
-    echo [INFO] Removing previous build...
-    rmdir /s /q "%OUT_DIR%"
+rem Clean previous build (only if /clean flag passed)
+if "%CLEAN_BUILD%"=="true" (
+    if exist "%OUT_DIR%" (
+        echo [INFO] Clean build requested, removing previous output...
+        rmdir /s /q "%OUT_DIR%"
+    )
 )
-mkdir "%OUT_DIR%"
+if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
 
 rem Generate args.gn
 echo.
@@ -186,13 +199,23 @@ echo skia_use_system_freetype2 = false >> "%ARGS_FILE%"
 echo skia_enable_svg = true >> "%ARGS_FILE%"
 echo skia_enable_tools = false >> "%ARGS_FILE%"
 echo skia_use_gl = true >> "%ARGS_FILE%"
-echo skia_use_vulkan = false >> "%ARGS_FILE%"
+echo skia_use_vulkan = true >> "%ARGS_FILE%"
+echo skia_enable_graphite = true >> "%ARGS_FILE%"
 echo skia_use_direct3d = false >> "%ARGS_FILE%"
 echo skia_use_dawn = false >> "%ARGS_FILE%"
 echo skia_use_harfbuzz = true >> "%ARGS_FILE%"
 echo skia_use_icu = true >> "%ARGS_FILE%"
 echo skia_enable_skshaper = true >> "%ARGS_FILE%"
 echo extra_cflags_cc = ["/EHsc", "/GR"] >> "%ARGS_FILE%"
+
+rem Detect sccache for faster builds
+where sccache >nul 2>&1
+if not errorlevel 1 (
+    echo [INFO] Found sccache - enabling for faster builds
+    echo cc_wrapper = "sccache" >> "%ARGS_FILE%"
+) else (
+    echo [INFO] Tip: Install sccache for faster clean builds
+)
 
 echo [INFO] Build configuration:
 type "%ARGS_FILE%"
@@ -229,6 +252,10 @@ echo Output directory: %SCRIPT_DIR%src\skia\out\%RELEASE_NAME%
 echo.
 echo Libraries built:
 dir /b "%SCRIPT_DIR%src\skia\out\%RELEASE_NAME%\*.lib" 2>nul
+echo.
+set "BUILD_END=%time%"
+echo Build started at: %BUILD_START%
+echo Build finished at: %BUILD_END%
 echo.
 
 exit /b 0

@@ -1,8 +1,12 @@
 #!/bin/bash
 
 # build-skia-arch.sh - Shared Skia build script for specific architecture
-# Usage: ./build-skia-arch.sh <arch>
+# Usage: ./build-skia-arch.sh <arch> [--clean]
 # Where <arch> is either "arm64" or "x64"
+# Options:
+#   --clean  Force clean rebuild (otherwise incremental)
+
+BUILD_START=$(date +%s)
 
 # Function to detect ICU installation
 detect_icu() {
@@ -65,12 +69,19 @@ configure_icu() {
 
 if [ $# -eq 0 ]; then
     echo "Error: Architecture required"
-    echo "Usage: $0 <arch>"
+    echo "Usage: $0 <arch> [--clean]"
     echo "  <arch>  Target architecture (arm64 or x64)"
+    echo "  --clean Force clean rebuild"
     exit 1
 fi
 
 arch=$1
+clean_build=false
+
+# Parse optional --clean flag
+if [ "$2" = "--clean" ]; then
+    clean_build=true
+fi
 
 # Validate architecture
 if [ "$arch" != "arm64" ] && [ "$arch" != "x64" ]; then
@@ -92,11 +103,16 @@ python3 bin/fetch-ninja;
 
 release_name=release-macos-$arch;
 
-rm -rf out/$release_name;
+# Conditional clean build
+if [ "$clean_build" = true ]; then
+    echo "Clean build requested, removing existing output..."
+    rm -rf out/$release_name;
+fi
 mkdir -p out/$release_name;
 
 args_file=out/$release_name/args.gn;
-echo 'is_official_build = true' >> $args_file;
+# Create fresh args.gn (use > not >> for first line to avoid stale config)
+echo 'is_official_build = true' > $args_file;
 echo "target_cpu = \"$arch\"" >> $args_file;
 echo 'skia_use_system_expat = false' >> $args_file;
 echo 'skia_use_system_libjpeg_turbo = false' >> $args_file;
@@ -107,9 +123,27 @@ configure_icu;
 echo 'skia_use_system_harfbuzz = false' >> $args_file;
 echo 'skia_use_harfbuzz = true' >> $args_file;
 echo 'skia_use_metal = true' >> $args_file;
+echo 'skia_enable_graphite = true' >> $args_file;
 echo 'skia_enable_skshaper = true' >> $args_file;
 echo 'extra_cflags_cc=["-fexceptions", "-frtti"]' >> $args_file;
+
+# Detect ccache/sccache for faster builds
+if command -v ccache >/dev/null 2>&1; then
+    echo "✓ Found ccache - enabling for faster builds"
+    echo 'cc_wrapper = "ccache"' >> $args_file
+elif command -v sccache >/dev/null 2>&1; then
+    echo "✓ Found sccache - enabling for faster builds"
+    echo 'cc_wrapper = "sccache"' >> $args_file
+else
+    echo "ℹ Tip: Install ccache for 6x faster clean builds: brew install ccache"
+fi
 
 bin/gn gen out/$release_name
 
 ninja -C out/$release_name;
+
+# Report build duration
+BUILD_END=$(date +%s)
+BUILD_DURATION=$((BUILD_END - BUILD_START))
+echo ""
+echo "Build completed in ${BUILD_DURATION}s ($((BUILD_DURATION/60))m $((BUILD_DURATION%60))s)"

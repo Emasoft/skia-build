@@ -4,20 +4,27 @@
 # Usage: ./build-linux.sh [options]
 # Options:
 #   -y, --non-interactive    Skip confirmation prompts (useful for CI/automation)
+#   -c, --clean             Force clean build (remove existing output)
 #   -h, --help              Show this help message
 
 # Parse command line arguments
 non_interactive=false
+clean_build=false
 for arg in "$@"; do
     case $arg in
         -y|--non-interactive)
             non_interactive=true
             shift
             ;;
+        -c|--clean)
+            clean_build=true
+            shift
+            ;;
         -h|--help)
             echo "Usage: $0 [options]"
             echo "Options:"
             echo "  -y, --non-interactive    Skip confirmation prompts (useful for CI/automation)"
+            echo "  -c, --clean             Force clean build (remove existing output)"
             echo "  -h, --help              Show this help message"
             exit 0
             ;;
@@ -28,6 +35,8 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+BUILD_START=$(date +%s)
 
 # Confirmation function for interactive mode
 confirm_continue() {
@@ -278,11 +287,15 @@ python3 bin/fetch-ninja;
 
 release_name=release-linux-$target_cpu;
 
-rm -rf out/$release_name;
+if [ "$clean_build" = true ]; then
+    echo "Clean build requested, removing existing output..."
+    rm -rf out/$release_name;
+fi
 mkdir -p out/$release_name;
 
 args_file=out/$release_name/args.gn;
-echo 'is_official_build = true' >> $args_file;
+# Create fresh args.gn (use > not >> for first line to avoid stale config)
+echo 'is_official_build = true' > $args_file;
 echo "target_cpu = \"$target_cpu\"" >> $args_file;
 
 # Configure compiler - prefer Clang if available
@@ -302,7 +315,20 @@ configure_icu;
 echo 'skia_use_system_harfbuzz = false' >> $args_file;
 echo 'skia_use_gl = true' >> $args_file;
 echo 'skia_use_egl = true' >> $args_file;
+echo 'skia_use_vulkan = true' >> $args_file;
+echo 'skia_enable_graphite = true' >> $args_file;
 echo 'extra_cflags_cc=["-fexceptions", "-frtti"]' >> $args_file;
+
+# Detect ccache/sccache for faster builds
+if command -v ccache >/dev/null 2>&1; then
+    echo "✓ Found ccache - enabling for faster builds"
+    echo 'cc_wrapper = "ccache"' >> $args_file
+elif command -v sccache >/dev/null 2>&1; then
+    echo "✓ Found sccache - enabling for faster builds"
+    echo 'cc_wrapper = "sccache"' >> $args_file
+else
+    echo "ℹ Tip: Install ccache for 6x faster clean builds: sudo apt install ccache"
+fi
 
 bin/gn gen out/$release_name
 
@@ -323,6 +349,9 @@ ln -sf $release_name release-linux
 
 cd $script_dir
 
-echo "Build complete for Linux ($target_cpu architecture)"
+BUILD_END=$(date +%s)
+BUILD_DURATION=$((BUILD_END - BUILD_START))
+echo ""
+echo "Build complete for Linux ($target_cpu architecture) in ${BUILD_DURATION}s ($((BUILD_DURATION/60))m $((BUILD_DURATION%60))s)"
 echo "Output: src/skia/out/$release_name/"
 echo "Symlink: src/skia/out/release-linux -> $release_name"

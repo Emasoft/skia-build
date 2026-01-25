@@ -38,12 +38,8 @@ if [ "$build_universal" = true ]; then
     ./build-macos-arch.sh arm64;
     
     cd $script_dir;
-    
+
     # Create universal binary directory
-    if [ -d "src/skia/out/release-macos" ]; then
-        rm -rf src/skia/out/release-macos;
-    fi
-    
     mkdir -p src/skia/out/release-macos;
     
     # Combine all .a files using lipo
@@ -65,11 +61,8 @@ else
     
     # Build only for current architecture
     ./build-macos-arch.sh $current_arch;
-    
+
     # Copy the single architecture build to the generic output location
-    if [ -d "src/skia/out/release-macos" ]; then
-        rm -rf src/skia/out/release-macos;
-    fi
     mkdir -p src/skia/out/release-macos;
     
     # Copy all files from architecture-specific build
